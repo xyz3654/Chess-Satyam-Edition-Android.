@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="wooden">#8B4513 </color>
+    <color name="wooden_light">#D7B899 </color>
+    <color name="button_color">#FF6200EE</color>  <!-- Change this to your desired button color -->
+    <color name="button_text_color">#FFFFFF</color> <!-- Change text color if needed -->
+</resources>
