@@ -83,26 +83,19 @@ class MainActivity : AppCompatActivity() {
     private fun onCellClick(view: View) {
         val position = view.tag as Pair<Int, Int>
 
-        // STRICT TURN CHECK: Prevent player from moving during AI's turn
         if (isAiMode && currentTurn != playerIsWhite) {
             Toast.makeText(this, "Computer is thinking...", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Case 1: A piece is already selected
         if (selectedPiece != null) {
-            // If the tapped cell is a valid move for the selected piece and is legal
             if (isValidMove(selectedPiece!!, position, pieces[selectedPiece!!]!!, pieces) && isMoveLegal(selectedPiece!!, position)) {
                 movePiece(selectedPiece!!, position)
             }
-            // Always deselect after a tap
             clearHighlights()
             selectedPiece = null
-        }
-        // Case 2: No piece is selected, try to select one
-        else {
+        } else {
             val piece = pieces[position]
-            // Can only select own pieces on your turn
             if (piece != null && piece.isWhite == currentTurn) {
                 selectedPiece = position
                 highlightPossibleMoves(position)
@@ -323,19 +316,16 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // THIS IS THE CORRECTED FUNCTION
     private fun updateBoardUI() {
         for (i in 0 until boardSize) {
             for (j in 0 until boardSize) {
-                // The boardCells are FrameLayouts. The first child (at index 0) is the ImageView for the piece.
                 val pieceImage = boardCells[i][j]?.getChildAt(0) as? ImageView
                 val piece = pieces[Pair(i, j)]
-                pieceImage?.setImageResource(piece?.imageRes ?: 0) // Use ?: 0 to clear the image if no piece
+                pieceImage?.setImageResource(piece?.imageRes ?: 0)
             }
         }
     }
 
-    // THIS IS THE CORRECTED FUNCTION
     private fun setupBoard() {
         pieces.clear()
         currentTurn = true
