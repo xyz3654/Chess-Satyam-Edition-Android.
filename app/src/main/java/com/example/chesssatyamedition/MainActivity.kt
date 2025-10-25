@@ -66,23 +66,18 @@ class MainActivity : AppCompatActivity() {
         aiDifficulty = difficulty
         playerIsWhite = (colorSelectionId == R.id.rbPlayAsWhite)
         isProMode = proMode
-
         setupBoard()
-
         findViewById<LinearLayout>(R.id.home).visibility = View.GONE
         chessBoard.visibility = View.VISIBLE
         findViewById<Button>(R.id.btnExit2).visibility = View.VISIBLE
-
-        // If player chose Black, AI (White) makes the first move
         if (isAiMode && !playerIsWhite) {
-            currentTurn = true // White's turn
+            currentTurn = true
             Handler(Looper.getMainLooper()).postDelayed({ performAiMove() }, 1000)
         }
     }
 
     private fun onCellClick(view: View) {
         val position = view.tag as Pair<Int, Int>
-
         if (isAiMode && currentTurn != playerIsWhite) {
             Toast.makeText(this, "Computer is thinking...", Toast.LENGTH_SHORT).show()
             return
@@ -103,11 +98,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // THIS FUNCTION IS NOW UPDATED WITH PAWN PROMOTION LOGIC
     private fun movePiece(from: Pair<Int, Int>, to: Pair<Int, Int>) {
         val piece = pieces[from]!!
         pieces.remove(from)
         pieces[to] = piece
 
+        // --- NEW: Check for Pawn Promotion ---
+        val promotionRank = if (piece.isWhite) 0 else 7
+        if (piece.type == "Pawn" && to.first == promotionRank) {
+            showPromotionDialog(to)
+        } else {
+            // Continue as normal if no promotion
+            endTurn()
+        }
+    }
+
+    // This new function contains the logic that used to be at the end of movePiece
+    private fun endTurn() {
         updateBoardUI()
         currentTurn = !currentTurn
 
@@ -126,12 +134,36 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // --- NEW: PAWN PROMOTION DIALOG ---
+    private fun showPromotionDialog(position: Pair<Int, Int>) {
+        val pieceToPromote = pieces[position] ?: return
+        val options = arrayOf("Queen", "Rook", "Bishop", "Knight")
+        AlertDialog.Builder(this)
+            .setTitle("Promote Pawn")
+            .setItems(options) { _, which ->
+                val chosenType = options[which]
+                val newPiece = when (chosenType) {
+                    "Queen" -> ChessPiece("Queen", if (pieceToPromote.isWhite) R.drawable.white_queen else R.drawable.black_queen, pieceToPromote.isWhite)
+                    "Rook" -> ChessPiece("Rook", if (pieceToPromote.isWhite) R.drawable.white_rook else R.drawable.black_rook, pieceToPromote.isWhite)
+                    "Bishop" -> ChessPiece("Bishop", if (pieceToPromote.isWhite) R.drawable.white_bishop else R.drawable.black_bishop, pieceToPromote.isWhite)
+                    "Knight" -> ChessPiece("Knight", if (pieceToPromote.isWhite) R.drawable.white_knight else R.drawable.black_knight, pieceToPromote.isWhite)
+                    else -> pieceToPromote // Should not happen
+                }
+                pieces[position] = newPiece
+                // After promoting, continue to the end of the turn
+                endTurn()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    // --- The rest of the functions from here are the same as the last correct version ---
+
     private fun highlightPossibleMoves(position: Pair<Int, Int>) {
         if (isProMode) return
         clearHighlights()
         val piece = pieces[position] ?: return
         boardCells[position.first][position.second]?.setBackgroundColor(Color.YELLOW)
-
         for (i in 0 until boardSize) {
             for (j in 0 until boardSize) {
                 val toPos = Pair(i, j)
@@ -166,7 +198,6 @@ class MainActivity : AppCompatActivity() {
         tempPieces.remove(from)
         tempPieces[to] = piece
         val isLegal = !isKingInCheck(piece.isWhite, tempPieces)
-        // Backtrack to restore original state
         tempPieces[from] = piece
         if(targetPiece != null) tempPieces[to] = targetPiece else tempPieces.remove(to)
         return isLegal
@@ -256,8 +287,6 @@ class MainActivity : AppCompatActivity() {
             return bestValue
         }
     }
-
-    // THIS IS WHERE YOUR PREVIOUS CODE WAS CUT OFF. THE REST IS NOW INCLUDED.
 
     private fun getAllPossibleMoves(isWhite: Boolean, boardState: Map<Pair<Int, Int>, ChessPiece>): List<Move> {
         val moves = mutableListOf<Move>()
@@ -394,15 +423,12 @@ class MainActivity : AppCompatActivity() {
             "Pawn" -> {
                 val direction = if (piece.isWhite) -1 else 1
                 val startRow = if (piece.isWhite) 6 else 1
-                // Standard 1-step move
                 if (fromCol == toCol && fromRow + direction == toRow && currentPieces[to] == null) {
                     true
                 }
-                // Initial 2-step move
                 else if (fromCol == toCol && fromRow == startRow && fromRow + 2 * direction == toRow && currentPieces[to] == null && currentPieces[Pair(fromRow + direction, fromCol)] == null) {
                     true
                 }
-                // Capture move
                 else if (Math.abs(fromCol - toCol) == 1 && fromRow + direction == toRow && targetPiece != null) {
                     true
                 } else {
@@ -437,4 +463,3 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 }
-
