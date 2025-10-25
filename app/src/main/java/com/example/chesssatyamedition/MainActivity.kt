@@ -166,7 +166,7 @@ class MainActivity : AppCompatActivity() {
         tempPieces.remove(from)
         tempPieces[to] = piece
         val isLegal = !isKingInCheck(piece.isWhite, tempPieces)
-        // Backtrack to restore original state for the main board
+        // Backtrack to restore original state
         tempPieces[from] = piece
         if(targetPiece != null) tempPieces[to] = targetPiece else tempPieces.remove(to)
         return isLegal
@@ -256,6 +256,8 @@ class MainActivity : AppCompatActivity() {
             return bestValue
         }
     }
+
+    // THIS IS WHERE YOUR PREVIOUS CODE WAS CUT OFF. THE REST IS NOW INCLUDED.
 
     private fun getAllPossibleMoves(isWhite: Boolean, boardState: Map<Pair<Int, Int>, ChessPiece>): List<Move> {
         val moves = mutableListOf<Move>()
@@ -435,3 +437,4 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 }
+
