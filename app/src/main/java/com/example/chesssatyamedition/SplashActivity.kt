@@ -1,7 +1,7 @@
 package com.example.chesssatyamedition
 
 import android.content.Intent
-import android.media.AudioAttributes // <-- NEWLY IMPORTED
+import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Bundle
 import android.widget.VideoView
@@ -14,14 +14,14 @@ class SplashActivity : AppCompatActivity() {
 
         val videoView = findViewById<VideoView>(R.id.videoView)
 
-        val videoPath = "android.resource://" + packageName + "/" + R.raw.chessintro
+        // THIS LINE IS CHANGED to use your new video.
+        // Make sure you have a video named "new_intro.mp4" in your res/raw folder.
+        val videoPath = "android.resource://" + packageName + "/" + R.raw.new_intro
         val uri = Uri.parse(videoPath)
 
         videoView.setVideoURI(uri)
 
-        // --- START OF NEW CODE FOR AUDIO ---
-
-        // 1. Define audio attributes to play media sound
+        // --- Code for Audio ---
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
@@ -29,32 +29,37 @@ class SplashActivity : AppCompatActivity() {
 
         videoView.setAudioAttributes(audioAttributes)
 
-        // 2. Set a listener for when the video is ready to play
         videoView.setOnPreparedListener { mediaPlayer ->
-            // The video is prepared, now we can enable audio
-            mediaPlayer.isLooping = false // Make sure the video doesn't loop
-            // By default, the media player might be muted. This line is not always
-            // necessary but is good practice to ensure volume is on.
+            mediaPlayer.isLooping = false
             mediaPlayer.setVolume(1f, 1f)
         }
+        // --- End of Audio Code ---
 
-        // --- END OF NEW CODE FOR AUDIO ---
-
-        // This listener now correctly fires when the video (with audio) is finished
+        // This listener fires when the video finishes playing on its own.
         videoView.setOnCompletionListener {
             goToMainActivity()
         }
 
+        // --- NEW: This listener makes the video skippable ---
+        videoView.setOnClickListener {
+            // If the user taps the screen, go straight to the main menu.
+            goToMainActivity()
+        }
+        // ----------------------------------------------------
+
+        // This listener handles errors if the video can't be played.
         videoView.setOnErrorListener { _, _, _ ->
             goToMainActivity()
-            true
+            true // Indicates the error was handled.
         }
 
-        // Start playing the video. The OnPreparedListener will handle the audio.
+        // Start playing the video.
         videoView.start()
     }
 
     private fun goToMainActivity() {
+        // This check prevents the app from trying to open the main menu twice
+        // (for example, if the user taps right as the video is ending).
         if (!isFinishing) {
             val intent = Intent(this, MainActivity::class.java)
             startActivity(intent)

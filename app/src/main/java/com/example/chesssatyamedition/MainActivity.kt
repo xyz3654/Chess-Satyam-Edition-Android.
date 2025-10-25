@@ -1,191 +1,311 @@
 package com.example.chesssatyamedition
 
-import android.content.Context
-import android.content.SharedPreferences
+import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.widget.Button
-import android.widget.GridLayout
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.Toast
+import android.view.ViewGroup
+import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.children
 
-// Data class for a move, used by the AI
+// Data classes for our game logic
 data class Move(val from: Pair<Int, Int>, val to: Pair<Int, Int>, val score: Int)
-
-// Data class for a chess piece
 data class ChessPiece(val type: String, val imageRes: Int, val isWhite: Boolean)
 
 class MainActivity : AppCompatActivity() {
+
+    // --- UI and Board State Variables ---
     private lateinit var chessBoard: GridLayout
     private val boardSize = 8
-    private val board = Array(boardSize) { arrayOfNulls<ImageView>(boardSize) }
+    private val boardCells = Array(boardSize) { arrayOfNulls<FrameLayout>(boardSize) } // Use FrameLayout to overlay dots
     private var pieces = mutableMapOf<Pair<Int, Int>, ChessPiece>()
     private var selectedPiece: Pair<Int, Int>? = null
-    private var currentTurn = true // true for White's turn (Player), false for Black's turn (AI)
-    private lateinit var sharedPreferences: SharedPreferences
+    private var currentTurn = true // true for White, false for Black
 
-    // --- AI VARIABLES ---
-    private var isAiMode = false // Is the game against the computer?
-    private val aiPlayerIsWhite = false // The AI will play as Black
+    // --- Game Mode Variables ---
+    private var isAiMode = false
+    private var playerIsWhite = true
+    private var isProMode = false
+    private var aiDifficulty = 1 // 1=Easy, 2=Medium, 3=Hard
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        sharedPreferences = getSharedPreferences("ChessGame", Context.MODE_PRIVATE)
+        // --- Find all UI elements ---
         chessBoard = findViewById(R.id.chessBoard)
-
-        val playWithComputerButton: Button = findViewById(R.id.btnPlayWithComputer)
-        val newGameButton: Button = findViewById(R.id.btnNewGame)
-        val continueGameButton: Button = findViewById(R.id.btnContinueGame)
-        val exitButton: Button = findViewById(R.id.btnExit)
-        val exitButton2: Button = findViewById(R.id.btnExit2)
         val home: LinearLayout = findViewById(R.id.home)
+        val btnEasy: Button = findViewById(R.id.btnEasy)
+        val btnMedium: Button = findViewById(R.id.btnMedium)
+        val btnHard: Button = findViewById(R.id.btnHard)
+        val btnNewGame: Button = findViewById(R.id.btnNewGame)
+        val btnExit: Button = findViewById(R.id.btnExit)
+        val btnExit2: Button = findViewById(R.id.btnExit2)
+        val rgPlayerColor: RadioGroup = findViewById(R.id.rgPlayerColor)
+        val cbProMode: CheckBox = findViewById(R.id.cbProMode)
 
-        playWithComputerButton.setOnClickListener {
-            isAiMode = true // Enable AI mode
-            chessBoard.visibility = View.VISIBLE
-            setupBoard()
-            home.visibility = View.GONE
-            exitButton2.visibility = View.VISIBLE
-        }
+        // --- Set up button clicks ---
+        btnEasy.setOnClickListener { startGame(isAi = true, difficulty = 1, rgPlayerColor.checkedRadioButtonId, cbProMode.isChecked) }
+        btnMedium.setOnClickListener { startGame(isAi = true, difficulty = 2, rgPlayerColor.checkedRadioButtonId, cbProMode.isChecked) }
+        btnHard.setOnClickListener { startGame(isAi = true, difficulty = 3, rgPlayerColor.checkedRadioButtonId, cbProMode.isChecked) }
+        btnNewGame.setOnClickListener { startGame(isAi = false, difficulty = 0, rgPlayerColor.checkedRadioButtonId, cbProMode.isChecked) }
 
-        newGameButton.setOnClickListener {
-            isAiMode = false // Disable AI mode for 2-player
-            chessBoard.visibility = View.VISIBLE
-            setupBoard()
-            home.visibility = View.GONE
-            exitButton2.visibility = View.VISIBLE
-        }
-
-        continueGameButton.setOnClickListener {
-            isAiMode = false
-            chessBoard.visibility = View.VISIBLE
-            loadPreviousGame()
-            home.visibility = View.GONE
-            exitButton2.visibility = View.VISIBLE
-        }
-
-        exitButton.setOnClickListener { finishAffinity() }
-        exitButton2.setOnClickListener {
-            val builder = AlertDialog.Builder(this)
-            builder.setMessage("Are you sure you want to exit?")
-                .setCancelable(false)
-                .setPositiveButton("Yes") { _, _ ->
-                    chessBoard.visibility = View.GONE
-                    home.visibility = View.VISIBLE
-                    exitButton2.visibility = View.GONE
-                    saveGame()
-                }
-                .setNegativeButton("No") { dialog, _ -> dialog.dismiss() }
-            builder.create().show()
+        btnExit.setOnClickListener { finishAffinity() }
+        btnExit2.setOnClickListener {
+            home.visibility = View.VISIBLE
+            chessBoard.visibility = View.GONE
+            btnExit2.visibility = View.GONE
         }
     }
 
-    private fun onCellClick(view: View) {
-        if (isAiMode && currentTurn == aiPlayerIsWhite) {
-            Toast.makeText(this, "Computer is thinking...", Toast.LENGTH_SHORT).show()
-            return
-        }
+    private fun startGame(isAi: Boolean, difficulty: Int, colorSelectionId: Int, proMode: Boolean) {
+        isAiMode = isAi
+        aiDifficulty = difficulty
+        playerIsWhite = (colorSelectionId == R.id.rbPlayAsWhite)
+        isProMode = proMode
 
-        val cell = view as ImageView
-        val position = cell.tag as Pair<Int, Int>
+        setupBoard()
 
-        if (selectedPiece == null) {
-            val piece = pieces[position]
-            if (piece != null && piece.isWhite == currentTurn) {
-                selectedPiece = position
-                highlightCell(position, true)
-                Toast.makeText(this, "Selected: ${piece.type}", Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            val piece = pieces[selectedPiece!!]
-            if (piece != null && isValidMove(selectedPiece!!, position, piece)) {
-                movePiece(selectedPiece!!, position)
-            } else {
-                Toast.makeText(this, "Invalid move", Toast.LENGTH_SHORT).show()
-            }
-            highlightCell(selectedPiece!!, false)
-            selectedPiece = null
-        }
-    }
+        findViewById<LinearLayout>(R.id.home).visibility = View.GONE
+        chessBoard.visibility = View.VISIBLE
+        findViewById<Button>(R.id.btnExit2).visibility = View.VISIBLE
 
-    private fun movePiece(from: Pair<Int, Int>, to: Pair<Int, Int>) {
-        val piece = pieces[from] ?: return
-
-        val capturedPiece = pieces.remove(to)
-        if (capturedPiece != null) {
-            Toast.makeText(this, "${capturedPiece.type} captured!", Toast.LENGTH_SHORT).show()
-        }
-
-        pieces.remove(from)
-        pieces[to] = piece
-        updateBoardUI()
-
-        if (isKingCaptured(!piece.isWhite)) {
-            val winner = if (piece.isWhite) "White" else "Black"
-            showGameOverDialog("$winner wins by capturing the king!")
-            return
-        }
-
-        currentTurn = !currentTurn
-
-        // THIS IS THE LINE THAT WAS FIXED
-        if (isAiMode && currentTurn == aiPlayerIsWhite) {
+        // If player chose Black, AI (White) makes the first move
+        if (isAiMode && !playerIsWhite) {
+            currentTurn = true // White's turn
             Handler(Looper.getMainLooper()).postDelayed({ performAiMove() }, 1000)
         }
     }
 
-    private fun performAiMove() {
-        Toast.makeText(this, "Computer's turn...", Toast.LENGTH_SHORT).show()
-        val bestMove = findBestMove()
-        if (bestMove != null) {
-            movePiece(bestMove.from, bestMove.to)
-        } else {
-            showGameOverDialog("Game Over! Player wins!")
+    private fun onCellClick(view: View) {
+        val position = view.tag as Pair<Int, Int>
+
+        // STRICT TURN CHECK: Prevent player from moving during AI's turn
+        if (isAiMode && currentTurn != playerIsWhite) {
+            Toast.makeText(this, "Computer is thinking...", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Case 1: A piece is already selected
+        if (selectedPiece != null) {
+            // If the tapped cell is a valid move for the selected piece and is legal
+            if (isValidMove(selectedPiece!!, position, pieces[selectedPiece!!]!!, pieces) && isMoveLegal(selectedPiece!!, position)) {
+                movePiece(selectedPiece!!, position)
+            }
+            // Always deselect after a tap
+            clearHighlights()
+            selectedPiece = null
+        }
+        // Case 2: No piece is selected, try to select one
+        else {
+            val piece = pieces[position]
+            // Can only select own pieces on your turn
+            if (piece != null && piece.isWhite == currentTurn) {
+                selectedPiece = position
+                highlightPossibleMoves(position)
+            }
         }
     }
 
-    private fun findBestMove(): Move? {
-        val possibleMoves = mutableListOf<Move>()
-        val allAiPieces = pieces.filter { it.value.isWhite == aiPlayerIsWhite }
+    private fun movePiece(from: Pair<Int, Int>, to: Pair<Int, Int>) {
+        val piece = pieces[from]!!
+        pieces.remove(from)
+        pieces[to] = piece
 
-        for ((fromPos, piece) in allAiPieces) {
-            for (i in 0 until boardSize) {
-                for (j in 0 until boardSize) {
-                    val toPos = Pair(i, j)
-                    if (isValidMove(fromPos, toPos, piece)) {
-                        val score = evaluateMove(toPos)
-                        possibleMoves.add(Move(fromPos, toPos, score))
+        updateBoardUI()
+        currentTurn = !currentTurn
+
+        if (isKingInCheck(currentTurn)) {
+            if (isCheckmate(currentTurn)) {
+                val winner = if (currentTurn == playerIsWhite) "Computer" else "You"
+                showGameOverDialog("Checkmate! $winner win!")
+                return
+            } else {
+                Toast.makeText(this, "Check!", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        if (isAiMode && currentTurn != playerIsWhite) {
+            Handler(Looper.getMainLooper()).postDelayed({ performAiMove() }, 500)
+        }
+    }
+
+    private fun highlightPossibleMoves(position: Pair<Int, Int>) {
+        if (isProMode) return
+        clearHighlights()
+        val piece = pieces[position] ?: return
+        boardCells[position.first][position.second]?.setBackgroundColor(Color.YELLOW)
+
+        for (i in 0 until boardSize) {
+            for (j in 0 until boardSize) {
+                val toPos = Pair(i, j)
+                if (isValidMove(position, toPos, piece, pieces) && isMoveLegal(position, toPos)) {
+                    val cell = boardCells[i][j]
+                    val dot = ImageView(this).apply {
+                        setImageResource(R.drawable.highlight_dot)
+                        tag = "highlight_dot"
+                    }
+                    cell?.addView(dot)
+                }
+            }
+        }
+    }
+
+    private fun clearHighlights() {
+        for (i in 0 until boardSize) {
+            for (j in 0 until boardSize) {
+                val originalColor = if ((i + j) % 2 == 0) Color.parseColor("#8B4513") else Color.parseColor("#D7B899")
+                boardCells[i][j]?.setBackgroundColor(originalColor)
+                val cell = boardCells[i][j]
+                val dotsToRemove = cell?.children?.filter { it.tag == "highlight_dot" }?.toList()
+                dotsToRemove?.forEach { dotView -> cell.removeView(dotView) }
+            }
+        }
+    }
+
+    private fun isMoveLegal(from: Pair<Int, Int>, to: Pair<Int, Int>): Boolean {
+        val piece = pieces[from] ?: return false
+        val tempPieces = pieces.toMutableMap()
+        val targetPiece = tempPieces[to]
+        tempPieces.remove(from)
+        tempPieces[to] = piece
+        val isLegal = !isKingInCheck(piece.isWhite, tempPieces)
+        // Backtrack to restore original state for the main board
+        tempPieces[from] = piece
+        if(targetPiece != null) tempPieces[to] = targetPiece else tempPieces.remove(to)
+        return isLegal
+    }
+
+    private fun isKingInCheck(kingIsWhite: Boolean, currentPieces: Map<Pair<Int, Int>, ChessPiece> = this.pieces): Boolean {
+        val kingPos = currentPieces.entries.find { it.value.type == "King" && it.value.isWhite == kingIsWhite }?.key ?: return false
+        val opponentIsWhite = !kingIsWhite
+        for ((pos, piece) in currentPieces) {
+            if (piece.isWhite == opponentIsWhite) {
+                if (isValidMove(pos, kingPos, piece, currentPieces)) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    private fun isCheckmate(kingIsWhite: Boolean): Boolean {
+        if (!isKingInCheck(kingIsWhite)) return false
+        val allPossibleMoves = getAllPossibleMoves(kingIsWhite, pieces)
+        return allPossibleMoves.none { move -> isMoveLegal(move.from, move.to) }
+    }
+
+    private fun performAiMove() {
+        Toast.makeText(this, "Computer is thinking...", Toast.LENGTH_SHORT).show()
+        Thread {
+            val bestMove = minimaxRoot(aiDifficulty, currentTurn, pieces)
+            Handler(Looper.getMainLooper()).post {
+                if (bestMove != null) {
+                    movePiece(bestMove.from, bestMove.to)
+                } else {
+                    showGameOverDialog("Game Over! You win!")
+                }
+            }
+        }.start()
+    }
+
+    private fun minimaxRoot(depth: Int, isMaximizingPlayer: Boolean, boardState: Map<Pair<Int, Int>, ChessPiece>): Move? {
+        val possibleMoves = getAllPossibleMoves(isMaximizingPlayer, boardState)
+        var bestMoveValue = if (isMaximizingPlayer) Int.MIN_VALUE else Int.MAX_VALUE
+        var bestMoveFound: Move? = null
+        for (move in possibleMoves) {
+            if (!isMoveLegal(move.from, move.to)) continue
+            val newBoardState = applyMove(boardState, move)
+            val moveValue = minimax(depth - 1, !isMaximizingPlayer, newBoardState, Int.MIN_VALUE, Int.MAX_VALUE)
+            if (isMaximizingPlayer) {
+                if (moveValue >= bestMoveValue) {
+                    bestMoveValue = moveValue
+                    bestMoveFound = move
+                }
+            } else {
+                if (moveValue <= bestMoveValue) {
+                    bestMoveValue = moveValue
+                    bestMoveFound = move
+                }
+            }
+        }
+        return bestMoveFound
+    }
+
+    private fun minimax(depth: Int, isMaximizingPlayer: Boolean, boardState: Map<Pair<Int, Int>, ChessPiece>, alpha: Int, beta: Int): Int {
+        if (depth == 0) return evaluateBoard(boardState)
+        val possibleMoves = getAllPossibleMoves(isMaximizingPlayer, boardState)
+        if (possibleMoves.isEmpty()) return evaluateBoard(boardState)
+        var a = alpha
+        var b = beta
+        if (isMaximizingPlayer) {
+            var bestValue = Int.MIN_VALUE
+            for (move in possibleMoves) {
+                if (!isMoveLegal(move.from, move.to)) continue
+                val newBoardState = applyMove(boardState, move)
+                bestValue = maxOf(bestValue, minimax(depth - 1, !isMaximizingPlayer, newBoardState, a, b))
+                a = maxOf(a, bestValue)
+                if (b <= a) break
+            }
+            return bestValue
+        } else {
+            var bestValue = Int.MAX_VALUE
+            for (move in possibleMoves) {
+                if (!isMoveLegal(move.from, move.to)) continue
+                val newBoardState = applyMove(boardState, move)
+                bestValue = minOf(bestValue, minimax(depth - 1, !isMaximizingPlayer, newBoardState, a, b))
+                b = minOf(b, bestValue)
+                if (b <= a) break
+            }
+            return bestValue
+        }
+    }
+
+    private fun getAllPossibleMoves(isWhite: Boolean, boardState: Map<Pair<Int, Int>, ChessPiece>): List<Move> {
+        val moves = mutableListOf<Move>()
+        for ((from, piece) in boardState) {
+            if (piece.isWhite == isWhite) {
+                for (i in 0 until boardSize) {
+                    for (j in 0 until boardSize) {
+                        val to = Pair(i, j)
+                        if (isValidMove(from, to, piece, boardState)) {
+                            moves.add(Move(from, to, 0))
+                        }
                     }
                 }
             }
         }
-        return possibleMoves.maxByOrNull { it.score }
+        return moves
     }
 
-    private fun evaluateMove(to: Pair<Int, Int>): Int {
-        var score = 0
-        val targetPiece = pieces[to]
-        if (targetPiece != null) {
-            score = getPieceValue(targetPiece)
+    private fun applyMove(boardState: Map<Pair<Int, Int>, ChessPiece>, move: Move): Map<Pair<Int, Int>, ChessPiece> {
+        val newBoard = boardState.toMutableMap()
+        val piece = newBoard[move.from] ?: return boardState
+        newBoard.remove(move.from)
+        newBoard[move.to] = piece
+        return newBoard
+    }
+
+    private fun evaluateBoard(boardState: Map<Pair<Int, Int>, ChessPiece>): Int {
+        var totalScore = 0
+        for (piece in boardState.values) {
+            val score = getPieceValue(piece)
+            totalScore += if (piece.isWhite != playerIsWhite) score else -score
         }
-        return score
+        return totalScore
     }
 
     private fun getPieceValue(piece: ChessPiece): Int {
         return when (piece.type) {
-            "Pawn" -> 1
-            "Knight" -> 3
-            "Bishop" -> 3
-            "Rook" -> 5
-            "Queen" -> 9
-            "King" -> 1000
+            "Pawn" -> 10
+            "Knight" -> 30
+            "Bishop" -> 30
+            "Rook" -> 50
+            "Queen" -> 90
+            "King" -> 900
             else -> 0
         }
     }
@@ -194,37 +314,29 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Game Over")
             .setMessage(message)
-            .setPositiveButton("New Game") { _, _ -> setupBoard() }
+            .setPositiveButton("Main Menu") { _, _ ->
+                findViewById<LinearLayout>(R.id.home).visibility = View.VISIBLE
+                chessBoard.visibility = View.GONE
+                findViewById<Button>(R.id.btnExit2).visibility = View.GONE
+            }
             .setCancelable(false)
             .show()
     }
 
+    // THIS IS THE CORRECTED FUNCTION
     private fun updateBoardUI() {
         for (i in 0 until boardSize) {
             for (j in 0 until boardSize) {
-                val pos = Pair(i, j)
-                val piece = pieces[pos]
-                board[i][j]?.setImageResource(piece?.imageRes ?: 0)
+                // The boardCells are FrameLayouts. The first child (at index 0) is the ImageView for the piece.
+                val pieceImage = boardCells[i][j]?.getChildAt(0) as? ImageView
+                val piece = pieces[Pair(i, j)]
+                pieceImage?.setImageResource(piece?.imageRes ?: 0) // Use ?: 0 to clear the image if no piece
             }
         }
     }
 
-    private fun highlightCell(position: Pair<Int, Int>, highlight: Boolean) {
-        val cell = board[position.first][position.second]
-        val originalColor = if ((position.first + position.second) % 2 == 0)
-            android.graphics.Color.parseColor("#8B4513") else android.graphics.Color.parseColor("#D7B899")
-        cell?.setBackgroundColor(if (highlight) android.graphics.Color.YELLOW else originalColor)
-    }
-
-    private fun isKingCaptured(isWhiteKing: Boolean): Boolean {
-        return pieces.values.none { it.type == "King" && it.isWhite == isWhiteKing }
-    }
-
+    // THIS IS THE CORRECTED FUNCTION
     private fun setupBoard() {
-        val editor = sharedPreferences.edit()
-        editor.remove("pieces")
-        editor.remove("currentTurn")
-        editor.apply()
         pieces.clear()
         currentTurn = true
         selectedPiece = null
@@ -234,17 +346,19 @@ class MainActivity : AppCompatActivity() {
             val cellSize = chessBoard.width / boardSize
             for (i in 0 until boardSize) {
                 for (j in 0 until boardSize) {
-                    val cell = ImageView(this)
-                    val color = if ((i + j) % 2 == 0) android.graphics.Color.parseColor("#8B4513") else android.graphics.Color.parseColor("#D7B899")
-                    cell.setBackgroundColor(color)
-                    cell.tag = Pair(i, j)
-                    val params = GridLayout.LayoutParams()
-                    params.width = cellSize
-                    params.height = cellSize
-                    cell.layoutParams = params
-                    cell.setOnClickListener { onCellClick(it) }
+                    val cell = FrameLayout(this).apply {
+                        layoutParams = GridLayout.LayoutParams().apply { width = cellSize; height = cellSize }
+                        tag = Pair(i, j)
+                        val backgroundColor = if ((i + j) % 2 == 0) Color.parseColor("#8B4513") else Color.parseColor("#D7B899")
+                        setBackgroundColor(backgroundColor)
+                        setOnClickListener { onCellClick(this) }
+                    }
+                    val pieceImage = ImageView(this).apply {
+                        layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    }
+                    cell.addView(pieceImage)
                     chessBoard.addView(cell)
-                    board[i][j] = cell
+                    boardCells[i][j] = cell
                 }
             }
             initializePieces()
@@ -254,123 +368,69 @@ class MainActivity : AppCompatActivity() {
 
     private fun initializePieces() {
         pieces.clear()
-        for (i in 0 until boardSize) {
-            for (j in 0 until boardSize) {
-                val piece = getInitialPiece(i, j)
-                if (piece != null) {
-                    pieces[Pair(i, j)] = piece
-                }
-            }
-        }
+        (0..7).forEach { j -> pieces[Pair(1, j)] = ChessPiece("Pawn", R.drawable.black_pawn, false) }
+        pieces[Pair(0, 0)] = ChessPiece("Rook", R.drawable.black_rook, false)
+        pieces[Pair(0, 7)] = ChessPiece("Rook", R.drawable.black_rook, false)
+        pieces[Pair(0, 1)] = ChessPiece("Knight", R.drawable.black_knight, false)
+        pieces[Pair(0, 6)] = ChessPiece("Knight", R.drawable.black_knight, false)
+        pieces[Pair(0, 2)] = ChessPiece("Bishop", R.drawable.black_bishop, false)
+        pieces[Pair(0, 5)] = ChessPiece("Bishop", R.drawable.black_bishop, false)
+        pieces[Pair(0, 3)] = ChessPiece("Queen", R.drawable.black_queen, false)
+        pieces[Pair(0, 4)] = ChessPiece("King", R.drawable.black_king, false)
+
+        (0..7).forEach { j -> pieces[Pair(6, j)] = ChessPiece("Pawn", R.drawable.white_pawn, true) }
+        pieces[Pair(7, 0)] = ChessPiece("Rook", R.drawable.white_rook, true)
+        pieces[Pair(7, 7)] = ChessPiece("Rook", R.drawable.white_rook, true)
+        pieces[Pair(7, 1)] = ChessPiece("Knight", R.drawable.white_knight, true)
+        pieces[Pair(7, 6)] = ChessPiece("Knight", R.drawable.white_knight, true)
+        pieces[Pair(7, 2)] = ChessPiece("Bishop", R.drawable.white_bishop, true)
+        pieces[Pair(7, 5)] = ChessPiece("Bishop", R.drawable.white_bishop, true)
+        pieces[Pair(7, 3)] = ChessPiece("Queen", R.drawable.white_queen, true)
+        pieces[Pair(7, 4)] = ChessPiece("King", R.drawable.white_king, true)
     }
 
-    private fun loadPreviousGame() {
-        isAiMode = false // Assume saved games are 2-player for now
-        pieces.clear()
-        currentTurn = sharedPreferences.getBoolean("currentTurn", true)
-
-        chessBoard.post {
-            val savedPieces = sharedPreferences.getString("pieces", "") ?: ""
-            if (savedPieces.isNotEmpty()) {
-                val pieceArray = savedPieces.split(";")
-                for (pieceData in pieceArray) {
-                    val parts = pieceData.split(",")
-                    if (parts.size == 4) {
-                        val x = parts[0].toInt()
-                        val y = parts[1].toInt()
-                        val type = parts[2]
-                        val isWhite = parts[3].toBoolean()
-                        val imageRes = getImageResource(type, isWhite)
-                        val piece = ChessPiece(type, imageRes, isWhite)
-                        pieces[Pair(x, y)] = piece
-                    }
-                }
-                updateBoardUI()
-                Toast.makeText(this, "Game Loaded!", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "No saved game found! Starting new game.", Toast.LENGTH_SHORT).show()
-                setupBoard()
-            }
-        }
-    }
-
-    private fun saveGame() {
-        val editor = sharedPreferences.edit()
-        val pieceData = pieces.entries.joinToString(";") { (pos, piece) ->
-            "${pos.first},${pos.second},${piece.type},${piece.isWhite}"
-        }
-        editor.putString("pieces", pieceData)
-        editor.putBoolean("currentTurn", currentTurn)
-        editor.apply()
-        Toast.makeText(this, "Game Saved!", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun getImageResource(type: String, isWhite: Boolean): Int {
-        return when (type) {
-            "Pawn" -> if (isWhite) R.drawable.white_pawn else R.drawable.black_pawn
-            "Rook" -> if (isWhite) R.drawable.white_rook else R.drawable.black_rook
-            "Knight" -> if (isWhite) R.drawable.white_knight else R.drawable.black_knight
-            "Bishop" -> if (isWhite) R.drawable.white_bishop else R.drawable.black_bishop
-            "Queen" -> if (isWhite) R.drawable.white_queen else R.drawable.black_queen
-            "King" -> if (isWhite) R.drawable.white_king else R.drawable.black_king
-            else -> 0
-        }
-    }
-
-    private fun getInitialPiece(i: Int, j: Int): ChessPiece? {
-        return when (i) {
-            1 -> ChessPiece("Pawn", R.drawable.black_pawn, isWhite = false)
-            6 -> ChessPiece("Pawn", R.drawable.white_pawn, isWhite = true)
-            0 -> when (j) {
-                0, 7 -> ChessPiece("Rook", R.drawable.black_rook, isWhite = false)
-                1, 6 -> ChessPiece("Knight", R.drawable.black_knight, isWhite = false)
-                2, 5 -> ChessPiece("Bishop", R.drawable.black_bishop, isWhite = false)
-                3 -> ChessPiece("Queen", R.drawable.black_queen, isWhite = false)
-                4 -> ChessPiece("King", R.drawable.black_king, isWhite = false)
-                else -> null
-            }
-            7 -> when (j) {
-                0, 7 -> ChessPiece("Rook", R.drawable.white_rook, isWhite = true)
-                1, 6 -> ChessPiece("Knight", R.drawable.white_knight, isWhite = true)
-                2, 5 -> ChessPiece("Bishop", R.drawable.white_bishop, isWhite = true)
-                3 -> ChessPiece("Queen", R.drawable.white_queen, isWhite = true)
-                4 -> ChessPiece("King", R.drawable.white_king, isWhite = true)
-                else -> null
-            }
-            else -> null
-        }
-    }
-
-    private fun isValidMove(from: Pair<Int, Int>, to: Pair<Int, Int>, piece: ChessPiece): Boolean {
-        val targetPiece = pieces[to]
-        if (targetPiece != null && targetPiece.isWhite == piece.isWhite) {
-            return false
-        }
+    private fun isValidMove(from: Pair<Int, Int>, to: Pair<Int, Int>, piece: ChessPiece, currentPieces: Map<Pair<Int, Int>, ChessPiece>): Boolean {
+        if (from == to) return false
+        val targetPiece = currentPieces[to]
+        if (targetPiece != null && targetPiece.isWhite == piece.isWhite) return false
+        val fromRow = from.first
+        val fromCol = from.second
+        val toRow = to.first
+        val toCol = to.second
 
         return when (piece.type) {
             "Pawn" -> {
                 val direction = if (piece.isWhite) -1 else 1
                 val startRow = if (piece.isWhite) 6 else 1
-                if (from.second == to.second && to.first - from.first == direction && !pieces.containsKey(to)) {
+                // Standard 1-step move
+                if (fromCol == toCol && fromRow + direction == toRow && currentPieces[to] == null) {
                     true
-                } else if (from.second == to.second && from.first == startRow && to.first - from.first == 2 * direction && !pieces.containsKey(to) && isPathClear(from, to)) {
+                }
+                // Initial 2-step move
+                else if (fromCol == toCol && fromRow == startRow && fromRow + 2 * direction == toRow && currentPieces[to] == null && currentPieces[Pair(fromRow + direction, fromCol)] == null) {
                     true
-                } else Math.abs(from.second - to.second) == 1 && to.first - from.first == direction && pieces.containsKey(to)
+                }
+                // Capture move
+                else if (Math.abs(fromCol - toCol) == 1 && fromRow + direction == toRow && targetPiece != null) {
+                    true
+                } else {
+                    false
+                }
             }
-            "Rook" -> (from.first == to.first || from.second == to.second) && isPathClear(from, to)
-            "Bishop" -> Math.abs(from.first - to.first) == Math.abs(from.second - to.second) && isPathClear(from, to)
-            "Queen" -> (from.first == to.first || from.second == to.second || Math.abs(from.first - to.first) == Math.abs(from.second - to.second)) && isPathClear(from, to)
+            "Rook" -> (fromRow == toRow || fromCol == toCol) && isPathClear(from, to, currentPieces)
+            "Bishop" -> Math.abs(fromRow - toRow) == Math.abs(fromCol - toCol) && isPathClear(from, to, currentPieces)
+            "Queen" -> (fromRow == toRow || fromCol == toCol || Math.abs(fromRow - toRow) == Math.abs(fromCol - toCol)) && isPathClear(from, to, currentPieces)
             "Knight" -> {
-                val dx = Math.abs(from.first - to.first)
-                val dy = Math.abs(from.second - to.second)
+                val dx = Math.abs(fromRow - toRow)
+                val dy = Math.abs(fromCol - toCol)
                 (dx == 2 && dy == 1) || (dx == 1 && dy == 2)
             }
-            "King" -> Math.abs(from.first - to.first) <= 1 && Math.abs(from.second - to.second) <= 1
+            "King" -> Math.abs(fromRow - toRow) <= 1 && Math.abs(fromCol - toCol) <= 1
             else -> false
         }
     }
 
-    private fun isPathClear(from: Pair<Int, Int>, to: Pair<Int, Int>): Boolean {
+    private fun isPathClear(from: Pair<Int, Int>, to: Pair<Int, Int>, currentPieces: Map<Pair<Int, Int>, ChessPiece>): Boolean {
         val dx = to.first - from.first
         val dy = to.second - from.second
         val stepX = if (dx == 0) 0 else dx / Math.abs(dx)
@@ -378,9 +438,7 @@ class MainActivity : AppCompatActivity() {
         var currentX = from.first + stepX
         var currentY = from.second + stepY
         while (currentX != to.first || currentY != to.second) {
-            if (pieces.containsKey(Pair(currentX, currentY))) {
-                return false
-            }
+            if (currentPieces.containsKey(Pair(currentX, currentY))) return false
             currentX += stepX
             currentY += stepY
         }

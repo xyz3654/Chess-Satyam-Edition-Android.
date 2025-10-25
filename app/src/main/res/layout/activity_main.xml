@@ -29,7 +29,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="10dp"
-        android:text="Exit"
+        android:text="Back to Menu"
         android:visibility="invisible"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
@@ -51,43 +51,101 @@
             android:id="@+id/tvWelcome"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="48dp"
-            android:text="Welcome to Chess"
+            android:text="Chess Satyam Edition"
             android:textColor="@android:color/white"
             android:textSize="34sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:layout_marginBottom="32dp" />
 
-        <!-- This is the new button -->
-        <Button
-            android:id="@+id/btnPlayWithComputer"
-            android:layout_width="200dp"
+        <!-- Game Mode Selection -->
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
-            android:text="Play with Computer"
-            android:textSize="18sp" />
+            android:text="Single Player"
+            android:textColor="#CCCCCC"
+            android:textSize="20sp"
+            android:textStyle="bold"/>
 
+        <!-- Player Color Selection -->
+        <RadioGroup
+            android:id="@+id/rgPlayerColor"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <RadioButton
+                android:id="@+id/rbPlayAsWhite"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play as White"
+                android:textColor="@android:color/white"
+                android:checked="true"
+                android:buttonTint="@android:color/white"/>
+
+            <RadioButton
+                android:id="@+id/rbPlayAsBlack"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play as Black"
+                android:textColor="@android:color/white"
+                android:layout_marginStart="24dp"
+                android:buttonTint="@android:color/white"/>
+        </RadioGroup>
+
+        <!-- Difficulty Level Buttons -->
+        <Button
+            android:id="@+id/btnEasy"
+            android:layout_width="250dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Start Game: Easy" />
+
+        <Button
+            android:id="@+id/btnMedium"
+            android:layout_width="250dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Start Game: Medium" />
+
+        <Button
+            android:id="@+id/btnHard"
+            android:layout_width="250dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Start Game: Hard" />
+
+        <!-- Pro Mode / Beginner Mode Toggle -->
+        <CheckBox
+            android:id="@+id/cbProMode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Pro Mode (No Move Hints)"
+            android:textColor="@android:color/white"
+            android:buttonTint="@android:color/white"/>
+
+        <!-- Separator Line -->
+        <View
+            android:layout_width="250dp"
+            android:layout_height="1dp"
+            android:background="#66FFFFFF"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Multiplayer and Exit Buttons -->
         <Button
             android:id="@+id/btnNewGame"
-            android:layout_width="200dp"
+            android:layout_width="250dp"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
-            android:text="New Game (2 Player)"
-            android:textSize="18sp" />
-
-        <Button
-            android:id="@+id/btnContinueGame"
-            android:layout_width="200dp"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="20dp"
-            android:text="Continue Game"
-            android:textSize="18sp" />
+            android:text="2 Player (On this device)" />
 
         <Button
             android:id="@+id/btnExit"
-            android:layout_width="200dp"
+            android:layout_width="250dp"
             android:layout_height="wrap_content"
-            android:text="Exit"
-            android:textSize="18sp" />
+            android:layout_marginTop="8dp"
+            android:text="Exit Game" />
 
     </LinearLayout>
 
